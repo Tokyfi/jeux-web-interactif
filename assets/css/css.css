@@ -27,3 +27,17 @@ canvas + div {
     border-radius: 5px;
     font-size: 14px;
 }
+
+/* Style pour le bouton de redémarrage */
+#restart-btn{
+      position: absolute;
+      z-Index: 1000;
+      padding: 10px 16px;
+      font-Size: 16px;
+      cursor: pointer;
+      background: #11c900;
+      color: #fff;
+      border: none;
+      border-Radius: 6px;
+      box-Shadow: 0 4px 10px rgba(0,0,0,0.3);
+};
