@@ -29,7 +29,7 @@ canvas + div {
 }
 
 /* Style pour le bouton de redémarrage */
-#restart-btn{
+#restart-btn , #quit-btn {
       position: absolute;
       z-Index: 1000;
       padding: 10px 16px;
@@ -41,3 +41,8 @@ canvas + div {
       border-Radius: 6px;
       box-Shadow: 0 4px 10px rgba(0,0,0,0.3);
 };
+
+
+#restart-btn:hover, #quit-btn:hover {
+  background-color: #444;
+}

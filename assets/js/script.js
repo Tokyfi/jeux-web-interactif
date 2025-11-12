@@ -87,19 +87,42 @@
 //   point = this.add.rectangle(x, y, 20, 20, 0xff0000); // Créer un rectangle rouge comme point
 // }
 
-const config = {
-  type: Phaser.AUTO,
-  width: 800,
-  height: 600,
-  backgroundColor: "#222",
-  scene: {
-    preload: preload,
-    create: create,
-    update: update,
-  },
-};
+class MainMenu extends Phaser.Scene {
+  constructor() {
+    super({ key: "MainMenu" });
+  }
 
-const game = new Phaser.Game(config);
+  preload() {
+    this.load.image("first", "/assets/img/fond.jpg");
+  }
+
+  create() {
+
+    // place le background en 0,0 et l'ajuste à la taille du canvas
+    const bg = this.add.image(0, 0, "first").setOrigin(0);
+    bg.setDisplaySize(config.width, config.height);
+
+
+    // Bouton "Commencer" en texte
+    const startButton = this.add.text(400, 300, 'Commencer', {
+      font: '32px Arial',
+      fill: '#ffff00',
+      backgroundColor: '#000',
+      padding: { x: 20, y: 10 }
+    })
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: true })
+    .on('pointerdown', () => {
+      this.scene.start('GameScene'); // Démarre la scène du jeu
+    })
+    .on('pointerover', function() {
+      this.setFill('#ff6600');
+    })
+    .on('pointerout', function() {
+      this.setFill('#ffff00');
+    });
+  }
+}
 
 let snake; // le corps du serpent
 let direction;
@@ -109,24 +132,42 @@ let apple;
 let score = 0;
 let scoreText;
 
-const moveInterval = 150; // temps entre deux mouvements
+let moveInterval = 150;            // valeur actuelle (modifiable lors du bonus)
+const normalMoveInterval = 150;    // valeur de base pour revenir après le bonus
+const boostFactor = 0.5;           // vitesse pendant le bonus = normalMoveInterval * boostFactor
+const boostDuration = 5000;        // durée du bonus en ms (ex : 5000 = 5s)
+const bonusRespawnDelay = 8000;    // délai avant réapparition du bonus si mangé (ms)
+
 const tileSize = 15; // taille d’un carré
 
-function preload() {
+class GameScene extends Phaser.Scene {  
+  constructor() {
+    super({ key: "GameScene" });
+  }
+
+preload() {
   const g = this.add.graphics();
 
   this.load.image("background", "/assets/img/terrain1.jpg");
   this.load.image("apple", "/assets/img/fruit.png");
   this.load.image("head", "/assets/img/tete.png");
 
+  this.load.image("boost", "/assets/img/star.png");
+
+  this.load.image("pacmanferme", "/assets/img/pac_ferme.png");
+  this.load.image("pacmanouvert", "/assets/img/pac_ouvert.png");
+  
+  this.load.image("rock", "/assets/img/buisson.png");
+
   // texture du serpent
   g.fillStyle(0x598842, 1);
   g.fillRoundedRect(0, 0, tileSize, tileSize, 4);
   g.generateTexture("segment", tileSize, tileSize);
   g.destroy();
+
 }
 
-function create() {
+create() {
   // place le background en 0,0 et l'ajuste à la taille du canvas
   const bg = this.add.image(0, 0, "background").setOrigin(0);
   bg.setDisplaySize(config.width, config.height);
@@ -141,7 +182,7 @@ function create() {
   snake.push(head);
 
   // créer les segments du corps (1 segment initial ici)
-  for (let i = 1; i < 3; i++) {
+  for (let i = 1; i < 4; i++) {
     const segment = this.add.image(400 - i * tileSize, 300, "segment").setOrigin(0.5);
     segment.setDisplaySize(tileSize, tileSize);
     segment.setDepth(1); // place les segments derrière la tête
@@ -162,15 +203,123 @@ function create() {
   apple.setDisplaySize(tileSize * 2, tileSize * 2); // ajuster la taille si besoin
 
   // texte du score
-  const style = { font: "16px Arial", fill: "#fff" };
+  const style = { font: "32px Arial", fill: "#fff" };
   scoreText = this.add.text(10, 10, "Score : 0", style);
-  this.add.text(10, 30, "Utilise les flèches pour diriger le serpent", {
-    font: "14px Arial",
-    fill: "#aaa",
-  });
+
+  // Bonus speed (sera créé via la méthode spawnBonus)
+  this.bonus = null;
+  this.spawnBonus(); // apparait au début
+
+  // Obstacle et NPCs
+    this.npcs = [];        // tableau des NPCs
+    this.npcDirs = [];     // directions courantes des NPCs
+    this.obstacle = [];  // obstacle
+
+    this.spawnObstacle(3);
+    this.spawnNPCs(3); // crée 2 personnages
 }
 
-function update(time) {
+
+// Nouvelle méthode pour créer / réapparaître le bonus (déjà existante)
+  spawnBonus() {
+    if (this.bonus && this.bonus.active) return;
+    const maxCols = Math.floor(config.width / tileSize) - 1;
+    const maxRows = Math.floor(config.height / tileSize) - 1;
+    const x = Phaser.Math.Between(0, maxCols) * tileSize + tileSize / 2;
+    const y = Phaser.Math.Between(0, maxRows) * tileSize + tileSize / 2;
+
+    if (this.textures.exists('boost')) {
+      this.bonus = this.add.image(x, y, 'boost').setOrigin(0.5);
+      this.bonus.setDisplaySize(tileSize * 2, tileSize * 2);
+    } else {
+      // fallback graphique si pas d'image
+      this.bonus = this.add.rectangle(x, y, tileSize, tileSize, 0xffff00).setOrigin(0.5);
+    }
+    this.bonus.setDepth(1);
+  }
+
+  // SPAWN Obstacle
+  spawnObstacle(count = 1) {
+    const maxCols = Math.floor(config.width / tileSize) - 1;
+    const maxRows = Math.floor(config.height / tileSize) - 1;
+
+    if (!this.obstacles) this.obstacles = [];
+
+    for (let i = 0; i < count; i++) {
+      let x, y;
+      let tries = 0;
+      let ok = false;
+
+      // essaie d'éviter d'apparaitre sur la pomme / le serpent / un autre obstacle
+      do {
+        x = Phaser.Math.Between(1, maxCols - 1) * tileSize + tileSize / 2;
+        y = Phaser.Math.Between(1, maxRows - 1) * tileSize + tileSize / 2;
+        tries++;
+
+        let collide = false;
+        if (apple && Phaser.Math.Distance.Between(x, y, apple.x, apple.y) < tileSize * 2) collide = true;
+        for (const ob of this.obstacles) {
+          if (Phaser.Math.Distance.Between(x, y, ob.x, ob.y) < tileSize * 4) { collide = true; break; }
+        }
+        for (const s of snake) {
+          if (Phaser.Math.Distance.Between(x, y, s.x, s.y) < tileSize * 2) { collide = true; break; }
+        }
+
+        if (!collide) ok = true;
+      } while (!ok && tries < 30);
+
+      const bush = this.add.image(x, y, 'rock').setOrigin(0.5);
+      bush.setDisplaySize(tileSize * 4, tileSize * 4);
+      bush.setDepth(1);
+      this.obstacles.push(bush);
+    }
+  }
+
+  spawnNPCs(count) {
+    const maxCols = Math.floor(config.width / tileSize) - 1;
+    const maxRows = Math.floor(config.height / tileSize) - 1;
+    const dirs = ["LEFT", "RIGHT", "UP", "DOWN"];
+
+    // tableau pour garder les timers d'animation (facultatif)
+    this.npcTimers = this.npcTimers || [];
+
+    const hasPacman = this.textures.exists('pacmanferme') && this.textures.exists('pacmanouvert');
+
+    for (let i = 0; i < count; i++) {
+      const x = Phaser.Math.Between(0, maxCols) * tileSize + tileSize / 2;
+      const y = Phaser.Math.Between(0, maxRows) * tileSize + tileSize / 2;
+
+      let npc;
+      if (hasPacman) {
+        // sprite Pacman animé en alternant deux textures
+        npc = this.add.sprite(x, y, 'pacmanferme').setOrigin(0.5);
+        npc.setDisplaySize(tileSize * 2, tileSize * 2);
+
+        // toggle texture pour simuler l'animation (bouche ouverte/fermée)
+        const toggleDelay = 200; // ms, ajuste la vitesse de mastication
+        const t = this.time.addEvent({
+          delay: toggleDelay,
+          loop: true,
+          callback: () => {
+            // alterne entre les deux clés
+            const nextKey = (npc.texture.key === 'pacmanferme') ? 'pacmanouvert' : 'pacmanferme';
+            npc.setTexture(nextKey);
+          }
+        });
+        this.npcTimers.push(t);
+      } else {
+        // fallback : carré rouge
+        npc = this.add.image(x, y, 'npc').setOrigin(0.5);
+        npc.setDisplaySize(tileSize * 2, tileSize * 2);
+      }
+
+      npc.setDepth(1);
+      this.npcs.push(npc);
+      this.npcDirs.push(Phaser.Utils.Array.GetRandom(dirs));
+    }
+  }
+
+update(time) {
   if (time < nextMove) return;
   nextMove = time + moveInterval;
 
@@ -231,6 +380,79 @@ function update(time) {
     scoreText.setText("Score : " + score);
   }
 
+  // vérifier si le serpent touche le bonus speed
+  if (this.bonus && Phaser.Math.Distance.Between(snake[0].x, snake[0].y, this.bonus.x, this.bonus.y) < tileSize) {
+    // applique le boost : réduit moveInterval (mouvement plus fréquent => plus rapide)
+    moveInterval = Math.max(30, Math.floor(normalMoveInterval * boostFactor));
+
+    // détruit le bonus pour le faire réapparaître plus tard
+    this.bonus.destroy();
+    this.bonus = null;
+
+    // planifier la fin du boost (retour à la vitesse normale)
+    this.time.delayedCall(boostDuration, () => {
+      moveInterval = normalMoveInterval;
+    }, [], this);
+
+    // planifier la réapparition du bonus
+    this.time.delayedCall(bonusRespawnDelay, () => {
+      this.spawnBonus();
+    }, [], this);
+  }
+
+// Déplacer les NPCs à chaque tick (mouvement sur la grille)
+    const maxCols = Math.floor(config.width / tileSize) - 1;
+    const maxRows = Math.floor(config.height / tileSize) - 1;
+    for (let i = 0; i < this.npcs.length; i++) {
+      const npc = this.npcs[i];
+      let dir = this.npcDirs[i];
+
+      // 20% chance de changer de direction aléatoirement
+      if (Phaser.Math.Between(0, 100) < 20) {
+        dir = Phaser.Utils.Array.GetRandom(["LEFT", "RIGHT", "UP", "DOWN"]);
+        this.npcDirs[i] = dir;
+      }
+
+      let nx = npc.x;
+      let ny = npc.y;
+      if (dir === "LEFT") nx -= tileSize;
+      else if (dir === "RIGHT") nx += tileSize;
+      else if (dir === "UP") ny -= tileSize;
+      else if (dir === "DOWN") ny += tileSize;
+
+      // si hors limites, choisis une nouvelle direction au hasard
+      if (nx < 0 || ny < 0 || nx >= config.width || ny >= config.height) {
+        dir = Phaser.Utils.Array.GetRandom(["LEFT", "RIGHT", "UP", "DOWN"]);
+        this.npcDirs[i] = dir;
+        continue;
+      }
+
+      // appliquer le mouvement
+      npc.x = nx;
+      npc.y = ny;
+
+      // si c'est un sprite animé, ajuste l'orientation visuelle
+        if (npc.setFlipX !== undefined) {
+          npc.setFlipX(dir === "LEFT");
+        }
+
+      // collision NPC <-> tête du serpent => game over
+      if (Phaser.Math.Distance.Between(snake[0].x, snake[0].y, npc.x, npc.y) < tileSize) {
+        gameOver(this);
+        return;
+      }
+    }
+
+    // vérifier collision obstacle(s) <-> tête du serpent
+    if (this.obstacles && this.obstacles.length) {
+      for (let ob of this.obstacles) {
+        if (Phaser.Math.Distance.Between(snake[0].x, snake[0].y, ob.x, ob.y) < tileSize) {
+          gameOver(this);
+          return;
+        }
+      }
+    }
+
   // vérifier collision avec soi-même
   for (let i = 1; i < snake.length; i++) {
     if (snake[0].x === snake[i].x && snake[0].y === snake[i].y) {
@@ -244,6 +466,18 @@ function update(time) {
     gameOver(this);
   }
 }
+}
+
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  backgroundColor: "#222",
+  scene: [MainMenu, GameScene], // Utilisation de scènes pour mieux organiser le code
+};
+
+const game = new Phaser.Game(config);
+
 
 function gameOver(scene) {
   scene.add.text(config.width / 2 - 100, config.height / 2 - 100, "GAME OVER", {
@@ -252,38 +486,66 @@ function gameOver(scene) {
   });
 
   scene.scene.pause();
-  
-  // crée un bouton DOM "Recommencer" si nécessaire et le positionne par rapport au canvas
-  let btn = document.getElementById("restart-btn");
+
   const canvas = scene.sys.game.canvas;
   const rect = canvas.getBoundingClientRect();
 
-  if (!btn) {
-    btn = document.createElement("button");
-    btn.id = "restart-btn";
-    btn.textContent = "Rejouer";
-    document.body.appendChild(btn);
+  // --- BOUTON REJOUER ---
+  let restartBtn = document.getElementById("restart-btn");
+  if (!restartBtn) {
+    restartBtn = document.createElement("button");
+    restartBtn.id = "restart-btn";
+    restartBtn.textContent = "Rejouer";
+    document.body.appendChild(restartBtn);
 
-    btn.addEventListener("click", () => {
+    restartBtn.addEventListener("click", () => {
       restartGame();
-      // suppression du bouton après clic
-      const b = document.getElementById("restart-btn");
-      if (b) b.remove();
+      cleanButtons();
     });
   }
 
-  // positionne le bouton au centre bas du canvas
-  btn.style.left = rect.left + rect.width / 2 - 50 + "px";
-  btn.style.top = rect.top + rect.height / 2 + 10 + "px";
-  btn.style.display = "block";
+  restartBtn.style.left = rect.left + rect.width / 2 - 120 + "px";
+  restartBtn.style.top = rect.top + rect.height / 2 + 10 + "px";
+  restartBtn.style.display = "block";
+
+  // --- BOUTON QUITTER ---
+  let quitBtn = document.getElementById("quit-btn");
+  if (!quitBtn) {
+    quitBtn = document.createElement("button");
+    quitBtn.id = "quit-btn";
+    quitBtn.textContent = "Quitter";
+    document.body.appendChild(quitBtn);
+
+    quitBtn.addEventListener("click", () => {
+      quitGame(scene);
+      cleanButtons();
+    });
+  }
+
+  quitBtn.style.left = rect.left + rect.width / 2 + 20 + "px";
+  quitBtn.style.top = rect.top + rect.height / 2 + 10 + "px";
+  quitBtn.style.display = "block";
 }
 
+// 🔹 Fonction pour supprimer les boutons
+function cleanButtons() {
+  const restart = document.getElementById("restart-btn");
+  const quit = document.getElementById("quit-btn");
+  if (restart) restart.remove();
+  if (quit) quit.remove();
+}
+
+// 🔹 Fonction rejouer (inchangée, mais propre)
 function restartGame() {
-  // supprime le bouton si présent
-  const b = document.getElementById("restart-btn");
-  if (b) b.remove();
-
-  // réinitialise le score et redémarre la scène principale
   score = 0;
-  game.scene.scenes[0].scene.restart();
+  game.scene.stop("GameScene");
+  game.scene.start("GameScene");
 }
+
+// 🔹 Fonction quitter → retour au menu principal
+function quitGame(scene) {
+  score = 0;
+  game.scene.stop("GameScene");
+  game.scene.start("MainMenu");
+}
+
