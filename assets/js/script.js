@@ -93,7 +93,7 @@ class MainMenu extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image("first", "/assets/img/fond.jpg");
+    this.load.image("first", "/assets/img/fond.png");
   }
 
   create() {
@@ -106,8 +106,8 @@ class MainMenu extends Phaser.Scene {
     // Bouton "Commencer" en texte
     const startButton = this.add.text(400, 300, 'Commencer', {
       font: '32px Arial',
-      fill: '#ffff00',
-      backgroundColor: '#000',
+      fill: '#ffff',
+      backgroundColor: '#000000ff',
       padding: { x: 20, y: 10 }
     })
     .setOrigin(0.5)
@@ -116,13 +116,14 @@ class MainMenu extends Phaser.Scene {
       this.scene.start('GameScene'); // Démarre la scène du jeu
     })
     .on('pointerover', function() {
-      this.setFill('#ff6600');
+      this.setFill('#ff0000ff');
     })
     .on('pointerout', function() {
-      this.setFill('#ffff00');
+      this.setFill('#ffffffff');
     });
   }
 }
+
 
 let snake; // le corps du serpent
 let direction;
@@ -131,6 +132,8 @@ let cursors;
 let apple;
 let score = 0;
 let scoreText;
+let lastDifficultyLevel = 0; // <-- AJOUTER : pour tracker le dernier niveau de difficulté
+
 
 let moveInterval = 150;            // valeur actuelle (modifiable lors du bonus)
 const normalMoveInterval = 150;    // valeur de base pour revenir après le bonus
@@ -158,6 +161,10 @@ preload() {
   this.load.image("pacmanouvert", "/assets/img/pac_ouvert.png");
   
   this.load.image("rock", "/assets/img/buisson.png");
+
+  // son
+  this.load.audio("eat", "/assets/audio/eat.mp3");
+  this.load.audio("gameover", "/assets/audio/game_over.mp3");
 
   // texture du serpent
   g.fillStyle(0x598842, 1);
@@ -215,8 +222,8 @@ create() {
     this.npcDirs = [];     // directions courantes des NPCs
     this.obstacle = [];  // obstacle
 
-    this.spawnObstacle(3);
-    this.spawnNPCs(3); // crée 2 personnages
+    this.spawnObstacle(1);
+    this.spawnNPCs(1); // crée 2 personnages
 }
 
 
@@ -362,6 +369,10 @@ update(time) {
 
   // vérifier si le serpent mange la pomme
   if (Phaser.Math.Distance.Between(snake[0].x, snake[0].y, apple.x, apple.y) < tileSize) {
+
+    // 🔊 joue le son de croque
+  this.sound.play("eat", { volume: 0.5 });
+
     // repositionner la pomme
     const maxCols = Math.floor(config.width / tileSize) - 1;
     const maxRows = Math.floor(config.height / tileSize) - 1;
@@ -376,8 +387,21 @@ update(time) {
     snake.push(newSegment);
 
     // mise à jour du score
-    score += 10;
+    score += 1;
     scoreText.setText("Score : " + score);
+
+    // ---- AUGMENTER LA DIFFICULTÉ TOUS LES 3 POINTS ----
+    const currentLevel = Math.floor(score / 3);
+    if (currentLevel > lastDifficultyLevel) {
+      lastDifficultyLevel = currentLevel;
+      console.log("🎮 Niveau " + currentLevel + " atteint ! +1 obstacle, +1 ennemi");
+      
+      // Ajouter 1 obstacle
+      this.spawnObstacle(1);
+      
+      // Ajouter 1 NPC
+      this.spawnNPCs(1);
+    }
   }
 
   // vérifier si le serpent touche le bonus speed
@@ -480,6 +504,8 @@ const game = new Phaser.Game(config);
 
 
 function gameOver(scene) {
+  scene.sound.play("gameover", { volume: 0.5 });
+  
   scene.add.text(config.width / 2 - 100, config.height / 2 - 100, "GAME OVER", {
     font: "32px Arial",
     fill: "#ff0000ff",
