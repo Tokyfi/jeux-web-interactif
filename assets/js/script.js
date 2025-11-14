@@ -94,9 +94,15 @@ class MainMenu extends Phaser.Scene {
 
   preload() {
     this.load.image("first", "/assets/img/fond.png");
+
+    this.load.audio("intro", "/assets/audio/intro.mp3");
   }
 
   create() {
+
+     // On stocke la musique dans this.introMusic pour y accéder partout dans la scène
+    this.introMusic = this.sound.add("intro", { volume: 0.5, loop: true });
+    this.introMusic.play();
 
     // place le background en 0,0 et l'ajuste à la taille du canvas
     const bg = this.add.image(0, 0, "first").setOrigin(0);
@@ -165,6 +171,7 @@ preload() {
   // son
   this.load.audio("eat", "/assets/audio/eat.mp3");
   this.load.audio("gameover", "/assets/audio/game_over.mp3");
+  this.load.audio("star", "/assets/audio/star.mp3");
 
   // texture du serpent
   g.fillStyle(0x598842, 1);
@@ -406,6 +413,10 @@ update(time) {
 
   // vérifier si le serpent touche le bonus speed
   if (this.bonus && Phaser.Math.Distance.Between(snake[0].x, snake[0].y, this.bonus.x, this.bonus.y) < tileSize) {
+
+    // 🔊 joue le son de bonus
+    this.sound.play("star", { volume: 0.8 });
+
     // applique le boost : réduit moveInterval (mouvement plus fréquent => plus rapide)
     moveInterval = Math.max(30, Math.floor(normalMoveInterval * boostFactor));
 
@@ -465,7 +476,17 @@ update(time) {
         gameOver(this);
         return;
       }
+
+      //collision NPC <-> corps serpent => game over
+      for (let j = 1; j < snake.length; j++) {
+        if (Phaser.Math.Distance.Between(npc.x, npc.y, snake[j].x, snake[j].y) < tileSize) {
+          gameOver(this);
+          return;
+        }
+      }
+      
     }
+    
 
     // vérifier collision obstacle(s) <-> tête du serpent
     if (this.obstacles && this.obstacles.length) {
@@ -516,6 +537,11 @@ function gameOver(scene) {
   const canvas = scene.sys.game.canvas;
   const rect = canvas.getBoundingClientRect();
 
+  const menu = scene.scene.get('MainMenu');
+if (menu.introMusic) {
+    menu.introMusic.stop();
+}
+
   // --- BOUTON REJOUER ---
   let restartBtn = document.getElementById("restart-btn");
   if (!restartBtn) {
@@ -564,6 +590,13 @@ function cleanButtons() {
 // 🔹 Fonction rejouer (inchangée, mais propre)
 function restartGame() {
   score = 0;
+
+  // récupérer la scène MainMenu pour rejouer la musique
+  const menu = game.scene.getScene("MainMenu");
+  if (menu && menu.introMusic) {
+      menu.introMusic.play();
+  }
+
   game.scene.stop("GameScene");
   game.scene.start("GameScene");
 }

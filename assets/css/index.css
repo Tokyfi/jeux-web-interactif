@@ -1,0 +1,49 @@
+/* style de base pour le corps */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Arial', sans-serif;
+  background: linear-gradient(135deg, #6a11cb, #2575fc);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  text-align: center;
+}
+
+/* titre principal */
+h1 {
+  font-size: 3em;
+  margin-bottom: 50px;
+  text-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+}
+
+/* liste des jeux */
+ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 20px;
+}
+
+/* liens des jeux */
+li a {
+  display: inline-block;
+  padding: 20px 40px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  text-decoration: none;
+  font-size: 1.5em;
+  border-radius: 15px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+/* effet au survol */
+li a:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
