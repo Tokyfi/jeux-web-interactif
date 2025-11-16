@@ -37,7 +37,7 @@ const config = {
 const game = new Phaser.Game(config);
 
 function preload() {
-  this.load.audio("jump", "/assets/audio/jump.mp3");
+  this.load.audio("jump", "/assets/audio/jump_dino.mp3");
   this.load.audio("game_over", "/assets/audio/game_over_dino.mp3");
   this.load.audio("fond", "/assets/audio/fond_dino.mp3");
 }

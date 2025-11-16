@@ -15,16 +15,18 @@ const cors = require('cors');
 const app = express();
 
 app.use(cors());
-// Dossier des fichiers du jeu
-app.use(express.static(path.join(__dirname)));
 
-// route principale
+// Servir le dossier public
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Route principale
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// port
+// Port
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Serveur démarré sur http://localhost:${PORT}`);
 });
+
